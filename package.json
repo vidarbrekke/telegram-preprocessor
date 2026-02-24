@@ -1,0 +1,12 @@
+{
+  "name": "telegram-preprocessor",
+  "version": "1.0.0",
+  "description": "Make agent-style content (tables, long text) Telegram-friendly: tables→bullets, safe chunking at 4096, optional conservative HTML.",
+  "type": "module",
+  "main": "index.mjs",
+  "scripts": {
+    "test": "node test.mjs"
+  },
+  "keywords": ["telegram", "bot", "formatting", "markdown", "tables"],
+  "license": "MIT"
+}
