@@ -1,12 +1,16 @@
 {
   "name": "telegram-preprocessor",
-  "version": "1.0.0",
-  "description": "Make agent-style content (tables, long text) Telegram-friendly: tables→bullets, safe chunking at 4096, optional conservative HTML.",
+  "version": "1.1.0",
+  "description": "Make agent-style content (tables, long text) Telegram-friendly: tables→bullets, safe chunking at 4096, optional conservative HTML. Includes TelegramProxy for automatic interception of all outbound messages.",
   "type": "module",
   "main": "index.mjs",
-  "scripts": {
-    "test": "node test.mjs"
+  "exports": {
+    ".": "./index.mjs",
+    "./proxy": "./proxy.mjs"
   },
-  "keywords": ["telegram", "bot", "formatting", "markdown", "tables"],
+  "scripts": {
+    "test": "node test.mjs && node test-proxy.mjs"
+  },
+  "keywords": ["telegram", "bot", "formatting", "markdown", "tables", "proxy", "middleware"],
   "license": "MIT"
 }
