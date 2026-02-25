@@ -3,7 +3,8 @@
  * Run: npm test  or  node test.mjs
  */
 
-import { process } from "./index.mjs";
+import { preprocess } from "./index.mjs";
+import fs from "node:fs";
 
 function assert(cond, msg) {
   if (!cond) throw new Error(msg);
@@ -27,7 +28,7 @@ function notIncludes(str, sub, msg) {
 |---|---|
 | A | 1 |
 | B | 2 |`;
-  const { chunks, parseMode } = process(input, { split: false });
+  const { chunks, parseMode } = preprocess(input, { split: false });
   eq(chunks.length, 1, "one chunk");
   includes(chunks[0], "• Name: A · Price: 1", "table row 1");
   includes(chunks[0], "• Name: B · Price: 2", "table row 2");
@@ -44,7 +45,7 @@ function notIncludes(str, sub, msg) {
 | 1 | 2 |
 \`\`\`
 text after`;
-  const { chunks } = process(input, { split: false });
+  const { chunks } = preprocess(input, { split: false });
   eq(chunks.length, 1, "one chunk");
   includes(chunks[0], "| A | B |", "fenced table preserved");
   includes(chunks[0], "| 1 | 2 |", "fenced table data preserved");
@@ -55,7 +56,7 @@ text after`;
 // 3) Chunking does not split &amp; mid-entity (safe split)
 {
   const long = "a".repeat(4080) + " &amp; b";
-  const { chunks } = process(long, { split: true });
+  const { chunks } = preprocess(long, { split: true });
   assert(chunks.length >= 1, "at least one chunk");
   const hasAmp = chunks.some((c) => c.includes("&amp;"));
   assert(hasAmp, "some chunk has &amp;");
@@ -74,7 +75,7 @@ text after`;
   const codeBody = "x".repeat(100);
   const preBlock = "<pre><code>" + codeBody + "</code></pre>";
   const long = "a".repeat(4050) + "\n\n" + preBlock;
-  const { chunks } = process(long, { style: "telegramHtml", split: true });
+  const { chunks } = preprocess(long, { style: "telegramHtml", split: true });
   const chunkWithCode = chunks.find((c) => c.includes(codeBody));
   assert(chunkWithCode != null, "some chunk has the code body");
   assert(chunkWithCode.includes(codeBody) && chunkWithCode.indexOf(codeBody) + codeBody.length <= chunkWithCode.length, "code body not split across chunks");
@@ -84,7 +85,7 @@ text after`;
 // 5) Conservative HTML does not italicize foo_bar_baz
 {
   const input = "foo_bar_baz and another_thing_here";
-  const { chunks } = process(input, { style: "telegramHtml", split: false });
+  const { chunks } = preprocess(input, { style: "telegramHtml", split: false });
   eq(chunks.length, 1, "one chunk");
   notIncludes(chunks[0], "<i>", "no italic tag from underscores");
   includes(chunks[0], "foo_bar_baz", "text preserved");
@@ -96,7 +97,7 @@ text after`;
   const input = `| A | B | C |
 |---|---|---|
 | 1 |  | 3 |`;
-  const { chunks } = process(input, { split: false });
+  const { chunks } = preprocess(input, { split: false });
   eq(chunks.length, 1, "one chunk");
   includes(chunks[0], "B: —", "empty cell as —");
   includes(chunks[0], "• A: 1 · B: — · C: 3", "row with empty cell");
@@ -108,7 +109,7 @@ text after`;
   const input = `some log line | with pipes
 another | line
 no separator here`;
-  const { chunks } = process(input, { split: false });
+  const { chunks } = preprocess(input, { split: false });
   eq(chunks.length, 1, "one chunk");
   includes(chunks[0], "some log line | with pipes", "pipe line preserved");
   notIncludes(chunks[0], "•", "no bullets from non-table");
@@ -118,7 +119,7 @@ no separator here`;
 // 8) Fenced block restored correctly with toHtml
 {
   const input = "Hello\n```\ncode here\n```\nWorld";
-  const { chunks, parseMode } = process(input, { style: "telegramHtml", split: false });
+  const { chunks, parseMode } = preprocess(input, { style: "telegramHtml", split: false });
   eq(parseMode, "HTML", "parseMode HTML");
   includes(chunks[0], "<pre><code>", "fence as pre/code");
   includes(chunks[0], "code here", "code body");

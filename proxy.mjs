@@ -18,7 +18,7 @@
  *   4. Passes all other methods through untouched (photos, documents, etc.)
  */
 
-import { process as preprocess } from "./index.mjs";
+import { preprocess } from "./index.mjs";
 
 export class TelegramProxy {
   /**

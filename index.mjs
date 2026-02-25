@@ -4,7 +4,7 @@
  * Makes agent-style content (markdown tables, long blocks, horizontal layout)
  * more readable in Telegram's mobile UI.
  *
- * - Fence-aware: protects ``` code blocks from table/whitespace rewriting
+ * - Fence-aware: protects ``` and ~~~ code blocks from table/whitespace rewriting
  * - Converts markdown tables to bullet lists (strict detection; preserves empty cells)
  * - Collapses excessive newlines, trims
  * - Chunks at 4096 with safe boundaries (never inside HTML entities or tags)
@@ -19,19 +19,36 @@
  */
 
 import { fileURLToPath } from "node:url";
+import fs from "node:fs";
+import process from "node:process";
 
 const TELEGRAM_MAX_LENGTH = 4096;
 const FENCE_PLACEHOLDER_PREFIX = "\u0000FENCE";
 const FENCE_PLACEHOLDER_SUFFIX = "\u0000";
 
+// Centralized HTML escaping — used everywhere HTML is produced
+function escapeHtml(text) {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+// Broad fence detection: supports ``` and ~~~, with optional whitespace
+function isFenceLine(line) {
+  const trimmed = line.trim();
+  return (trimmed === "```" || trimmed === "~~~") && trimmed.length >= 3;
+}
+
 function extractFencedBlocks(text) {
   const blocks = [];
-  const re = /```(\w*)\n([\s\S]*?)```/g;
+  // Match both ``` and ~~~, with optional language identifier and trailing whitespace
+  const re = /(```|~~~)(\w*)\n([\s\S]*?)\1\s*$/gm;
   const matches = [];
   let match;
   while ((match = re.exec(text)) !== null) {
     matches.push(match);
-    blocks.push({ lang: match[1] || "", body: match[2] });
+    blocks.push({ lang: match[2] || "", body: match[3], fenceType: match[1] });
   }
   let out = text;
   for (let i = 0; i < matches.length; i++) {
@@ -45,11 +62,12 @@ function restoreFencedBlocks(text, blocks, toHtml = false) {
   let out = text;
   for (let i = 0; i < blocks.length; i++) {
     const placeholder = `${FENCE_PLACEHOLDER_PREFIX}${i}${FENCE_PLACEHOLDER_SUFFIX}`;
-    const { body } = blocks[i];
-    const escaped = toHtml
-      ? body.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
-      : body;
-    const replacement = toHtml ? `<pre><code>${escaped}</code></pre>` : "```\n" + body + "\n```";
+    const { body, fenceType } = blocks[i];
+    const escaped = toHtml ? escapeHtml(body) : body;
+    const lang = blocks[i].lang ? ` ${blocks[i].lang}` : "";
+    const replacement = toHtml
+      ? `<pre><code${lang}>${escaped}</code></pre>`
+      : `${fenceType}${lang}\n${body}\n${fenceType}\n`;
     out = out.split(placeholder).join(replacement);
   }
   return out;
@@ -174,10 +192,7 @@ function splitChunksSafe(text, maxLen = TELEGRAM_MAX_LENGTH) {
 }
 
 function markdownToTelegramHtmlConservative(text) {
-  let out = text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+  let out = escapeHtml(text);
   out = out.replace(/^##\s+(.+)$/gm, "<b>$1</b>");
   out = out.replace(/\*\*([^*\n]{1,80})\*\*/g, "<b>$1</b>");
   out = out.replace(/(?<!\w)`([^`]+)`(?!\w)/g, "<code>$1</code>");
@@ -190,7 +205,7 @@ function markdownToTelegramHtmlConservative(text) {
  * @param {{ style?: 'telegramPlain'|'telegramHtml', toHtml?: boolean, maxChunkLength?: number, split?: boolean }} options
  * @returns {{ chunks: string[], parseMode: 'HTML' | null }}
  */
-export function process(text, options = {}) {
+export function preprocess(text, options = {}) {
   const {
     style: styleOpt,
     toHtml: toHtmlLegacy,
@@ -224,15 +239,18 @@ function main() {
   const jsonOut = args.includes("--json");
   const style = args.includes("--html") ? "telegramHtml" : "telegramPlain";
 
-  let input = "";
-  if (process.stdin.isTTY) {
-    const i = args.findIndex((a) => a === "--text");
-    input = i >= 0 ? (args[i + 1] ?? "") : "";
-  } else {
-    input = require("node:fs").readFileSync(0, "utf8");
+  let inputText = "";
+  // Check for --text flag first
+  const textIdx = args.findIndex((a) => a === "--text");
+  if (textIdx >= 0 && textIdx < args.length - 1) {
+    inputText = args[textIdx + 1];
+  } else if (process.stdin && !process.stdin.isTTY) {
+    // Read from stdin if piped
+    inputText = fs.readFileSync(0, "utf8");
   }
+  // If TTY and no --text, input stays empty
 
-  const result = process(input, { style, split: true });
+  const result = preprocess(inputText, { style, split: true });
   if (jsonOut) {
     console.log(JSON.stringify(result, null, 2));
   } else {
@@ -241,14 +259,18 @@ function main() {
   }
 }
 
+// Entry point
 const __filename = fileURLToPath(import.meta.url);
-const entryArg = (typeof process !== "undefined" && process.argv && process.argv[1]) || "";
+const entryArg = process.argv && process.argv[1] ? process.argv[1] : "";
 const isEntryScript =
   entryArg.length > 0 &&
   (entryArg === __filename ||
     entryArg.endsWith("telegram-format-preprocessor.mjs") ||
     entryArg.endsWith("index.mjs"));
-const hasPipedStdin = typeof process !== "undefined" && process.stdin && !process.stdin.isTTY;
-if (isEntryScript || hasPipedStdin) {
+
+// Always call main if this script is run directly (has arguments)
+const shouldCallMain = isEntryScript || (process.argv && process.argv.length > 1);
+
+if (shouldCallMain) {
   main();
 }
