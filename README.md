@@ -1,116 +1,66 @@
-# telegram-preprocessor
+# OpenClaw Telegram Preprocessor Integration
 
-Make agent-style content (markdown tables, long blocks, horizontal layout) more readable in Telegram’s mobile UI.
+## Overview
 
-- **Fence-aware:** protects ` ``` ` code blocks from table/whitespace rewriting  
-- **Tables → bullets:** strict markdown table detection; preserves empty cells as —  
-- **Safe chunking:** splits at 4096 chars without breaking HTML entities or `<pre>` blocks  
-- **Optional HTML:** `telegramHtml` style = conservative markdown → Telegram-safe HTML per chunk (no `_italic_` to avoid `foo_bar_baz`)
+This directory contains the integration scripts for the Telegram Preprocessor in OpenClaw. The preprocessor enhances Telegram message formatting by converting markdown tables to bullet lists, preserving code blocks, and ensuring messages are under Telegram's 4096-character limit.
 
-## Install
+## Files
 
-Clone or add as dependency:
+- `telegram-preprocessor-integration.mjs`: Main integration script for OpenClaw.
 
-```bash
-git clone https://github.com/vidarbrekke/telegram-preprocessor.git
-cd telegram-preprocessor
-```
+## Installation
+
+1. **Ensure the Telegram Preprocessor is installed**:
+   ```bash
+   cd /root/openclaw-stock-home/.openclaw/workspace/repositories/telegram-preprocessor
+   npm install
+   ```
+
+2. **Load the integration script in OpenClaw**:
+   ```javascript
+   const { integrateTelegramPreprocessor } = require('/root/openclaw-stock-home/.openclaw/workspace/telegram-integration/telegram-preprocessor-integration.mjs');
+   const bot = new TelegramBot('YOUR_BOT_TOKEN');
+   integrateTelegramPreprocessor(bot);
+   ```
 
 ## Usage
 
-### CLI
+### Integrating the Preprocessor
+
+To integrate the preprocessor into OpenClaw, follow these steps:
+
+1. **Load the integration script**:
+   ```javascript
+   const { integrateTelegramPreprocessor } = require('./telegram-preprocessor-integration.mjs');
+   ```
+
+2. **Integrate with your Telegram bot**:
+   ```javascript
+   const bot = new TelegramBot('YOUR_BOT_TOKEN');
+   integrateTelegramPreprocessor(bot);
+   ```
+
+### Features
+
+- **Table-to-Bullets Conversion**: Converts markdown tables to bullet lists for better readability on Telegram.
+- **Code Block Preservation**: Preserves code blocks using fence-aware logic.
+- **Metadata Hiding**: Hides sensitive metadata like message IDs and timestamps.
+- **Safe Chunking**: Splits messages at safe boundaries to avoid breaking HTML entities or tags.
+
+## Testing
+
+To test the integration, you can use the following commands:
 
 ```bash
-# stdin → stdout (plain)
-echo "| A | B |\n|---|---|\n| 1 | 2 |" | node index.mjs
-
-# JSON output (chunks + parseMode)
-echo "long content..." | node index.mjs --json
-
-# Conservative HTML
-echo "**Bold** and \`code\`" | node index.mjs --html
+cd /root/openclaw-stock-home/.openclaw/workspace/repositories/telegram-preprocessor
+test-integration.mjs
 ```
 
-### Programmatic
+## References
 
-```javascript
-import { process } from "telegram-preprocessor"; // or "./index.mjs"
-
-const { chunks, parseMode } = process(agentReply, { style: "telegramHtml", split: true });
-// Send each chunk via Telegram Bot API with parse_mode: parseMode
-```
-
-**Options:**
-
-- `style`: `'telegramPlain'` (default) or `'telegramHtml'`
-- `toHtml`: legacy boolean (same as `style: 'telegramHtml'`)
-- `maxChunkLength`: default 4096
-- `split`: default true
-
-## Tests
-
-```bash
-npm test
-# or: node test.mjs
-```
-
-Runs 8 regression tests (table→bullets, fence protection, safe chunking, blank cells, no italic on `foo_bar_baz`, etc.).
-
-## Telegram limits
-
-- **4096** characters per message; longer content is split.
-- **No markdown tables;** this preprocessor converts them to bullet lists.
-- **parse_mode** HTML supports only `<b>`, `<i>`, `<code>`, `<pre>`, `<a href="...">`; we use a conservative subset.
-
-## TelegramProxy — Automatic Interception
-
-Drop-in wrapper around any Telegram bot client that automatically preprocesses **all** outbound messages before sending. No changes needed to existing message-sending code.
-
-```javascript
-import { TelegramProxy, createProxy } from "telegram-preprocessor/proxy";
-
-// Wrap your existing bot client
-const bot = new TelegramProxy(originalBotClient, {
-  style: "telegramHtml",   // or "telegramPlain" (default)
-  chunkDelayMs: 300,       // delay between chunks to avoid flood limits
-});
-
-// Use exactly like before — tables and long messages handled automatically
-await bot.sendMessage(chatId, longMarkdownWithTables);
-// → multiple sendMessage calls if needed, tables converted, parse_mode set
-
-// All other methods pass through untouched
-await bot.sendPhoto(chatId, imageUrl);
-await bot.sendDocument(chatId, file);
-```
-
-### Proxy Options
-
-| Option | Default | Description |
-|--------|---------|-------------|
-| `style` | `'telegramPlain'` | `'telegramPlain'` or `'telegramHtml'` |
-| `maxChunkLength` | `4096` | Max characters per message |
-| `split` | `true` | Split long messages into chunks |
-| `chunkDelayMs` | `300` | Delay (ms) between chunk sends |
-| `enabled` | `true` | Set `false` for passthrough mode |
-
-### Compatible With
-
-Any Telegram bot library that exposes a `sendMessage(chatId, text, options?)` method:
-- [node-telegram-bot-api](https://github.com/yagop/node-telegram-bot-api)
-- [grammY](https://grammy.dev/)
-- [Telegraf](https://telegraf.js.org/)
-- OpenClaw's internal Telegram client
-
-## Tests
-
-```bash
-npm test
-# or individually:
-node test.mjs        # 8 preprocessor tests
-node test-proxy.mjs  # 7 proxy tests
-```
+- [Telegram Preprocessor Documentation](https://github.com/vidarbrekke/telegram-preprocessor)
+- [Telegram Message Formatting Guide](https://core.telegram.org/bots/api#formatting-options)
+- [Telegram Bot API Documentation](https://core.telegram.org/bots/api)
 
 ## License
-
 MIT
