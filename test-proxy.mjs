@@ -108,4 +108,17 @@ function makeMockClient() {
   console.log("✓ caller-specified parse_mode is not overridden");
 }
 
+// 8) stripMetadata removes message_id/sender_id/timestamp from chunks
+{
+  const client = makeMockClient();
+  const bot = new TelegramProxy(client, { style: "telegramPlain", stripMetadata: true });
+  const text = "Hello\nmessage_id: 12345\nsender_id: 67890\nWorld";
+  await bot.sendMessage(505, text);
+  notIncludes(client.sent[0].text, "message_id", "message_id stripped");
+  notIncludes(client.sent[0].text, "sender_id", "sender_id stripped");
+  includes(client.sent[0].text, "Hello", "content preserved");
+  includes(client.sent[0].text, "World", "content preserved");
+  console.log("✓ stripMetadata removes metadata from chunks");
+}
+
 console.log("\nAll proxy tests passed. ✅");

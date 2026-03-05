@@ -19,6 +19,7 @@
  */
 
 import { fileURLToPath } from "node:url";
+import path from "node:path";
 import fs from "node:fs";
 import process from "node:process";
 
@@ -259,18 +260,16 @@ function main() {
   }
 }
 
-// Entry point
+// Entry point: only run CLI when this file is the process entry script (not when imported).
 const __filename = fileURLToPath(import.meta.url);
-const entryArg = process.argv && process.argv[1] ? process.argv[1] : "";
+const entryArg = process.argv?.[1] ?? "";
 const isEntryScript =
   entryArg.length > 0 &&
-  (entryArg === __filename ||
+  (path.resolve(process.cwd(), entryArg) === __filename ||
+    entryArg === __filename ||
     entryArg.endsWith("telegram-format-preprocessor.mjs") ||
     entryArg.endsWith("index.mjs"));
 
-// Always call main if this script is run directly (has arguments)
-const shouldCallMain = isEntryScript || (process.argv && process.argv.length > 1);
-
-if (shouldCallMain) {
+if (isEntryScript) {
   main();
 }

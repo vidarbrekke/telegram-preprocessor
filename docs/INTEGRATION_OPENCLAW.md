@@ -14,39 +14,36 @@ This document provides instructions for integrating the Telegram Preprocessor in
 
 ### Step 1: Load the Preprocessor
 
-Load the preprocessor in your OpenClaw integration script:
+Load the preprocessor in your OpenClaw integration script (ESM):
 
 ```javascript
-const { preprocess } = require('./index.mjs');
+import { preprocess } from './path/to/telegram-preprocessor/index.mjs';
 ```
 
 ### Step 2: Replace the Default `sendMessage` Function
 
-Replace the default `sendMessage` function of the Telegram bot with the processed version:
+Replace the default `sendMessage` function of the Telegram bot with the processed version. Use the **original** function when sending chunks to avoid recursion:
 
 ```javascript
-// Replace the default sendMessage function
-const originalSendMessage = bot.sendMessage;
+const originalSendMessage = bot.sendMessage.bind(bot);
 
-bot.sendMessage = async function(chatId, message, opts) {
-  if (opts && opts.channel === 'telegram') {
+bot.sendMessage = async function (chatId, message, opts) {
+  if (opts && opts.channel === "telegram") {
     const { chunks, parseMode } = preprocess(message, {
       style: "telegramHtml",
       split: true,
     });
 
-    // Hide metadata
-    const cleanedChunks = chunks.map(chunk => {
-      return chunk.replace(/\bmessage_id:\s*[^\s]+\b|\bsender_id:\s*[^\s]+\b/gi, "").trim();
-    });
+    // Hide metadata (optional)
+    const cleanedChunks = chunks.map((chunk) =>
+      chunk.replace(/\bmessage_id:\s*[^\s]+\b|\bsender_id:\s*[^\s]+\b/gi, "").trim()
+    );
 
-    // Send each chunk
     for (const chunk of cleanedChunks) {
-      await this.sendMessage(chatId, chunk, { parse_mode: parseMode });
+      await originalSendMessage(chatId, chunk, { ...opts, parse_mode: parseMode });
     }
   } else {
-    // Fall back to the original sendMessage for non-Telegram messages
-    await originalSendMessage.call(this, chatId, message, opts);
+    await originalSendMessage(chatId, message, opts);
   }
 };
 ```
@@ -56,7 +53,7 @@ bot.sendMessage = async function(chatId, message, opts) {
 #### Test with Sample Input
 
 ```javascript
-const { preprocess } = require('./index.mjs');
+import { preprocess } from './path/to/telegram-preprocessor/index.mjs';
 
 const message = `Here is a table:\n| A | B |\n|---|---|\n| 1 | 2 |\nMetadata: message_id: 12345, sender_id: 67890`;
 
@@ -89,34 +86,29 @@ You can verify the routing by checking the logs at:
 
 ## Example Integration Script
 
-Here is a complete example of how to integrate the preprocessor into OpenClaw:
+Here is a complete example of how to integrate the preprocessor into OpenClaw (ESM; use the original send to avoid recursion):
 
 ```javascript
-// Load the preprocessor
-const { preprocess } = require('./index.mjs');
+import { preprocess } from './path/to/telegram-preprocessor/index.mjs';
 
-// Replace the default sendMessage function
-const originalSendMessage = bot.sendMessage;
+const originalSendMessage = bot.sendMessage.bind(bot);
 
-bot.sendMessage = async function(chatId, message, opts) {
-  if (opts && opts.channel === 'telegram') {
+bot.sendMessage = async function (chatId, message, opts) {
+  if (opts && opts.channel === "telegram") {
     const { chunks, parseMode } = preprocess(message, {
       style: "telegramHtml",
       split: true,
     });
 
-    // Hide metadata
-    const cleanedChunks = chunks.map(chunk => {
-      return chunk.replace(/\bmessage_id:\s*[^\s]+\b|\bsender_id:\s*[^\s]+\b/gi, "").trim();
-    });
+    const cleanedChunks = chunks.map((chunk) =>
+      chunk.replace(/\bmessage_id:\s*[^\s]+\b|\bsender_id:\s*[^\s]+\b/gi, "").trim()
+    );
 
-    // Send each chunk
     for (const chunk of cleanedChunks) {
-      await this.sendMessage(chatId, chunk, { parse_mode: parseMode });
+      await originalSendMessage(chatId, chunk, { ...opts, parse_mode: parseMode });
     }
   } else {
-    // Fall back to the original sendMessage for non-Telegram messages
-    await originalSendMessage.call(this, chatId, message, opts);
+    await originalSendMessage(chatId, message, opts);
   }
 };
 ```

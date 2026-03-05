@@ -20,6 +20,22 @@
 
 import { preprocess } from "./index.mjs";
 
+/** Default regex to strip common metadata from chunks (message_id, sender_id, timestamp). */
+const DEFAULT_METADATA_RE =
+  /\b(?:message_id|sender_id|timestamp):\s*[^\s]+\b/gi;
+
+/**
+ * Strip metadata patterns from text. Optionally use a custom regex.
+ * @param {string} text
+ * @param {boolean|RegExp} stripMetadata - true = use default regex; RegExp = use this; false = no strip
+ * @returns {string}
+ */
+function stripMetadataFromText(text, stripMetadata) {
+  if (!stripMetadata || typeof text !== "string") return text;
+  const re = stripMetadata === true ? new RegExp(DEFAULT_METADATA_RE.source, "gi") : stripMetadata;
+  return text.replace(re, "").replace(/\n{2,}/g, "\n\n").trim();
+}
+
 export class TelegramProxy {
   /**
    * @param {object} client  - Original Telegram bot client (node-telegram-bot-api, grammY, telegraf, etc.)
@@ -29,6 +45,7 @@ export class TelegramProxy {
    * @param {boolean} [options.split=true]
    * @param {number} [options.chunkDelayMs=300]  - Delay between chunks (ms) to avoid flood limits
    * @param {boolean} [options.enabled=true]     - Set false to disable preprocessing (passthrough mode)
+   * @param {boolean|RegExp} [options.stripMetadata=false] - Strip message_id/sender_id/timestamp (true = default regex, or pass RegExp)
    */
   constructor(client, options = {}) {
     if (!client) throw new Error("TelegramProxy: client is required");
@@ -39,6 +56,7 @@ export class TelegramProxy {
       split: true,
       chunkDelayMs: 300,
       enabled: true,
+      stripMetadata: false,
       ...options,
     };
 
@@ -71,6 +89,11 @@ export class TelegramProxy {
       split: this._options.split,
     });
 
+    const stripMeta = this._options.stripMetadata;
+    const chunksToSend = stripMeta
+      ? chunks.map((chunk) => stripMetadataFromText(chunk, stripMeta))
+      : chunks;
+
     // Merge parse_mode from preprocessor (HTML) unless caller already set one
     const baseOptions = { ...options };
     if (parseMode && !baseOptions.parse_mode) {
@@ -78,11 +101,11 @@ export class TelegramProxy {
     }
 
     const responses = [];
-    for (let i = 0; i < chunks.length; i++) {
+    for (let i = 0; i < chunksToSend.length; i++) {
       if (i > 0 && this._options.chunkDelayMs > 0) {
         await sleep(this._options.chunkDelayMs);
       }
-      const res = await this._client.sendMessage(chatId, chunks[i], baseOptions);
+      const res = await this._client.sendMessage(chatId, chunksToSend[i], baseOptions);
       responses.push(res);
     }
 
